@@ -92,12 +92,13 @@ def sidi_order_target(context, bar_dict, code, value, account_id, sell_amount=0)
             #滑点0.2%
             price = bar_dict[code].close * (1+slippage)
             amount = int(value/price / 100)*100
-        
+        logger.warn(value)
+        logger.warn(amount)
         price = str(price)
         amount = str(amount)
         path = "funcNo="+funcno+"&account_id="+account_id+"&market="+market+\
                 "&stkcode="+stkcode+"&stockName="+name+"&price="+price+"&amount="+amount+"&trade_type="+trade_type
-        print BASE_PATH+path
+        logger.warn(BASE_PATH+path)
         
         status = -1
         ret = -1
@@ -109,7 +110,7 @@ def sidi_order_target(context, bar_dict, code, value, account_id, sell_amount=0)
             time.sleep(1)
             n = n + 1
         
-        print status, result
+        logger.warn(str(status)+','+str(result))
     except Exception as e:
         raise e
     return status, result
