@@ -20,13 +20,111 @@ import json
 import time
 
 BASE_PATH="/servlet/json?"
+#offline
 HTTP_URL="172.16.126.216"
 HTTP_PORT="8002"
+#online
+#HTTP_URL="172.16.50.18"
+#HTTP_PORT="8009"
+
 HTTP_OK = 200
 
 #ACCOUNT_ID='2380'
 
 slippage=0.002
+
+def sidi_get_position_count(context, account_id):
+    res_json =  sidi_get_position(account_id)
+    if res_json.has_key('results')==False:
+        logger.warn("error position type %s" % res_json)
+
+    if len(res_json['results']) == 0:
+        position_data = []
+    else:
+        position_data = res_json['results'][0]['data']
+    
+    count = 0
+    
+    for item in position_data:
+        quantity = item['usable_qty']
+        if quantity > 0:
+            count = count + 1
+    return count
+
+def sidi_clear_position(context, bar_dict, account_id):
+    res_json =  sidi_get_position(account_id)
+    if res_json.has_key('results')==False:
+        logger.warn("error position type %s" % res_json)
+
+    if len(res_json['results']) == 0:
+        position_data = []
+    else:
+        position_data = res_json['results'][0]['data']
+    for item in position_data:
+        market_id = item['market_id']
+        if market_id == "SZ":
+            suffix = "XSHE"
+        elif market_id == "SH":
+            suffix = "XSHG"
+        stock =  item['stock_code']+"."+suffix
+
+
+        quantity = item['usable_qty']
+        try:
+            if quantity != 0:
+                logger.warn("SIDI sell out %s" % stock)
+                status, result = sidi_order_target(context, bar_dict, stock, 0, account_id, quantity)
+        except Exception, e:
+            logger.warn(e)
+            continue
+
+def sidi_adjust_position(context, bar_dict, buy_stocks, account_id):
+    res_json =  sidi_get_position(account_id)
+    if res_json.has_key('results')==False:
+        logger.warn("error position type %s" % res_json)
+
+    if len(res_json['results']) == 0:
+        position_data = []
+    else:
+        position_data = res_json['results'][0]['data']
+    key_list = []
+    num = 0
+    for item in position_data:
+        market_id = item['market_id']
+        if market_id == "SZ":
+            suffix = "XSHE"
+        elif market_id == "SH":
+            suffix = "XSHG"
+        stock =  item['stock_code']+"."+suffix
+
+        key_list.append(stock)
+
+        quantity = item['usable_qty']
+        if stock not in buy_stocks:
+            try:
+                #if bar_dict[stock].close < bar_dict[stock].limit_up :
+                if quantity != 0:
+                    logger.warn("SIDI sell out %s" % stock)
+                    status, result = sidi_order_target(context, bar_dict, stock, 0, account_id, quantity)
+                    num = num + 1
+            except Exception, e:
+                logger.warn(e)
+                continue
+
+    # waiting for trading done
+    time.sleep(3)
+
+    position_count = len(position_data) - num
+
+    if context.buy_stock_count > position_count:
+        cash = float(sidi_get_cash(account_id)['results'][0]['userable_balance'])
+        logger.warn("total cash %f" % cash)
+        value =  cash / (context.buy_stock_count - position_count)
+        #value =  cash / len(buy_stocks)
+        for stock in buy_stocks:
+            if stock not in key_list:
+                logger.warn("SIDI buy %s" % stock)
+                sidi_order_target(context, bar_dict, stock, value, account_id)
 
 def sidi_get_cash(account_id):
     funcno = '1106335'
@@ -46,7 +144,8 @@ def sidi_get_cash(account_id):
         raise e
     return res_json
 
-def sidi_get_position(account_id):
+#all_data: 是否返回所有数据， 默认True只返回
+def sidi_get_position(account_id, all_data=True):
     funcno = '402113'
     try:
         path = "funcNo="+funcno+"&account_id="+account_id
@@ -62,8 +161,20 @@ def sidi_get_position(account_id):
             n = n + 1
     except Exception as e:
         raise e
-    
+
+    if all_data == False:    
+        if res_json.has_key('results')==False:
+            logger.warn("error position type %s" % res_json)
+
+        if len(res_json['results']) == 0:
+            position_data = []
+        else:
+            position_data = res_json['results'][0]['data']
+       
+        res_json = position_data
+
     return res_json
+
 #parameter:
 #   value for buy   when sell it's not useful
 #   sell_amount for sell   when buy it's not useful
@@ -92,8 +203,8 @@ def sidi_order_target(context, bar_dict, code, value, account_id, sell_amount=0)
             #滑点0.2%
             price = bar_dict[code].close * (1+slippage)
             amount = int(value/price / 100)*100
-        logger.warn(value)
-        logger.warn(amount)
+        #logger.warn(value)
+        #logger.warn(amount)
         price = str(price)
         amount = str(amount)
         path = "funcNo="+funcno+"&account_id="+account_id+"&market="+market+\
@@ -141,6 +252,9 @@ class SidiApiMod(AbstractMod):
         register_api('sidi_get_position', sidi_get_position)
         register_api('sidi_get_cash', sidi_get_cash)
         register_api('sidi_order_target', sidi_order_target)
+        register_api('sidi_adjust_position', sidi_adjust_position)
+        register_api('sidi_clear_position', sidi_clear_position)
+        register_api('sidi_get_position_count', sidi_get_position_count)
                
     def tear_down(self, code, exception=None):
         pass
