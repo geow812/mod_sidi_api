@@ -19,17 +19,21 @@ import urllib
 import json
 import time
 
-BASE_PATH="/servlet/json?"
+import ConfigParser
+conf = ConfigParser.ConfigParser()
+conf.read("/home/workspace/rqalpha/general.conf")
+BASE_PATH = conf.get("sidi", "base_path")
+HTTP_URL = conf.get("sidi", "http_url")
+HTTP_PORT = conf.get("sidi", "http_port")
+#BASE_PATH="/servlet/json?"
 #offline
-HTTP_URL="172.16.126.216"
-HTTP_PORT="8002"
+#HTTP_URL="172.16.126.216"
+#HTTP_PORT="8002"
 #online
 #HTTP_URL="172.16.50.18"
 #HTTP_PORT="8009"
 
 HTTP_OK = 200
-
-#ACCOUNT_ID='2380'
 
 slippage=0.002
 
