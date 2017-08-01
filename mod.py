@@ -25,6 +25,7 @@ conf.read("/home/workspace/rqalpha/general.conf")
 BASE_PATH = conf.get("sidi", "base_path")
 HTTP_URL = conf.get("sidi", "http_url")
 HTTP_PORT = conf.get("sidi", "http_port")
+slippage = float(conf.get("sidi", "slippage"))
 #BASE_PATH="/servlet/json?"
 #offline
 #HTTP_URL="172.16.126.216"
@@ -35,7 +36,7 @@ HTTP_PORT = conf.get("sidi", "http_port")
 
 HTTP_OK = 200
 
-slippage=0.002
+#slippage=0.002
 
 def sidi_get_position_count(context, account_id):
     res_json =  sidi_get_position(account_id)
@@ -81,8 +82,8 @@ def sidi_clear_position(context, bar_dict, account_id):
         except Exception, e:
             logger.warn(e)
             continue
-
-def sidi_adjust_position(context, bar_dict, buy_stocks, account_id):
+#count_type: 0  use context.buy_stock_count  1 use len(buy_stocks)
+def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0):
     res_json =  sidi_get_position(account_id)
     if res_json.has_key('results')==False:
         logger.warn("error position type %s" % res_json)
@@ -119,12 +120,14 @@ def sidi_adjust_position(context, bar_dict, buy_stocks, account_id):
     time.sleep(3)
 
     position_count = len(position_data) - num
-
+    
     if context.buy_stock_count > position_count:
         cash = float(sidi_get_cash(account_id)['results'][0]['userable_balance'])
         logger.warn("total cash %f" % cash)
-        value =  cash / (context.buy_stock_count - position_count)
-        #value =  cash / len(buy_stocks)
+        if count_type == 1:
+            value =  cash / len(buy_stocks)
+        else:    
+            value =  cash / (context.buy_stock_count - position_count)
         for stock in buy_stocks:
             if stock not in key_list:
                 logger.warn("SIDI buy %s" % stock)
@@ -199,15 +202,15 @@ def sidi_order_target(context, bar_dict, code, value, account_id, sell_amount=0)
         if value == 0:
             trade_type = '1'
             amount = sell_amount
-            #滑点0.2%
+            #滑点0.5%
             price = bar_dict[code].close * (1-slippage)
         #buy
         else:
             trade_type = '0'
-            #滑点0.2%
+            #滑点0.5%
             price = bar_dict[code].close * (1+slippage)
             amount = int(value/price / 100)*100
-        #logger.warn(value)
+        logger.warn(value)
         #logger.warn(amount)
         price = str(price)
         amount = str(amount)
