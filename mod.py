@@ -120,7 +120,9 @@ def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0
     time.sleep(3)
 
     position_count = len(position_data) - num
-    
+    #logger.warn(len(buy_stocks))
+    if len(buy_stocks) == 0:
+        return
     if context.buy_stock_count > position_count:
         cash = float(sidi_get_cash(account_id)['results'][0]['userable_balance'])
         logger.warn("total cash %f" % cash)
