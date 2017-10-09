@@ -82,7 +82,7 @@ def sidi_clear_position(context, bar_dict, account_id):
         except Exception, e:
             logger.warn(e)
             continue
-#count_type: 0  use context.buy_stock_count  1 use len(buy_stocks)  0不兼容仓位控制
+#count_type: 0  use context.buy_stock_count  1 use len(buy_stocks)  
 def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0, position_per=1):
     res_json =  sidi_get_position(account_id)
     if res_json.has_key('results')==False:
@@ -124,11 +124,17 @@ def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0
     if len(buy_stocks) == 0:
         return
     if context.buy_stock_count > position_count:
-        cash = float(sidi_get_cash(account_id)['results'][0]['userable_balance']) - (1000000*(1-float(position_per)))
+        if position_per == 1:
+            cash = float(sidi_get_cash(account_id)['results'][0]['userable_balance'])
+        else:
+            cash = float(sidi_get_cash(account_id)['results'][0]['total_assets'])*position_per
+
         logger.warn("total cash %f" % cash)
         if count_type == 1:
+            #不足 buy_stock_count时用于等权仓位
             value =  cash / len(buy_stocks)
         else:
+            #不足 buy_stock_count时变相控制仓位
             value =  cash / (context.buy_stock_count - position_count)
         for stock in buy_stocks:
             if stock not in key_list:
