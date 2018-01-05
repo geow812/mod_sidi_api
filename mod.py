@@ -82,6 +82,7 @@ def sidi_clear_position(context, bar_dict, account_id):
         except Exception, e:
             logger.warn(e)
             continue
+#调仓函数，买入buy_stocks中股票，卖出不在其中的股票。
 #count_type: 0  use context.buy_stock_count  1 use len(buy_stocks) 0不支持仓位控制
 def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0, position_per=1):
     res_json =  sidi_get_position(account_id)
@@ -118,7 +119,7 @@ def sidi_adjust_position(context, bar_dict, buy_stocks, account_id, count_type=0
 
     # waiting for trading done
     time.sleep(10)
-
+    
     position_count = len(position_data) - num
     #logger.warn(len(buy_stocks))
     if len(buy_stocks) == 0:
@@ -164,6 +165,55 @@ def sidi_get_cash(account_id):
             n = n + 1
     except Exception as e:
         raise e
+    return res_json
+
+#撤单
+def sidi_undo(account_id, cancel_id):
+    funcno = '401151'
+    try:
+        path = "funcNo="+funcno+"&account_id="+account_id+"&cancel_id="+cancel_id
+        
+        status = -1
+        ret = -1
+        n = 0
+        while (status!=HTTP_OK  or ret!="0") and n<3:
+            status, result = get_sidi_data(path)
+            res_json = json.loads(result)
+            ret = res_json['error_no']
+            time.sleep(1)
+            n = n + 1
+    except Exception as e:
+        raise e
+    return res_json
+
+#可撤销委托查询
+def sidi_get_revocable(account_id):
+    funcno = '1106327'
+    try:
+        path = "funcNo="+funcno+"&account_id="+account_id
+        
+        status = -1
+        ret = -1
+        n = 0
+        while (status!=HTTP_OK  or ret!="0") and n<3:
+            status, result = get_sidi_data(path)
+            res_json = json.loads(result)
+            ret = res_json['error_no']
+            time.sleep(1)
+            n = n + 1
+    except Exception as e:
+        raise e
+    
+    if res_json.has_key('results')==False:
+        logger.warn("error position type %s" % res_json)
+
+    if len(res_json['results']) == 0:
+        position_data = []
+    else:
+        position_data = res_json['results'][0]['data']
+
+    res_json = position_data
+
     return res_json
 
 #all_data: 是否返回所有数据， 默认True只返回
@@ -224,6 +274,9 @@ def sidi_order_target(context, bar_dict, code, value, account_id, sell_amount=0)
             trade_type = '0'
             #滑点0.5%
             price = bar_dict[code].close * (1+slippage)
+            if price < 0.1 and price > -0.1:
+                logger.warn('error price')
+                return -1, 01
             amount = int(value/price / 100)*100
         logger.warn(value)
         #logger.warn(amount)
@@ -265,7 +318,28 @@ def get_sidi_data(path):
         raise e
     return -1, result
     
+def sidi_get_holding(account_id):
+    res_json =  sidi_get_position(account_id)
+    if res_json.has_key('results')==False:
+        logger.warn("error position type %s" % res_json)
     
+    if len(res_json['results']) == 0:
+        position_data = []
+    else:
+        position_data = res_json['results'][0]['data']
+    key_list = []
+    num = 0 
+    for item in position_data:
+        market_id = item['market_id']
+        if market_id == "SZ":
+            suffix = "XSHE"
+        elif market_id == "SH":
+            suffix = "XSHG"
+        stock =  item['stock_code']+"."+suffix
+
+        key_list.append(stock)
+    return key_list 
+   
 class SidiApiMod(AbstractMod):
     def start_up(self, env, mod_config):                    
         
@@ -277,6 +351,9 @@ class SidiApiMod(AbstractMod):
         register_api('sidi_adjust_position', sidi_adjust_position)
         register_api('sidi_clear_position', sidi_clear_position)
         register_api('sidi_get_position_count', sidi_get_position_count)
+        register_api('sidi_get_holding', sidi_get_holding)
+        register_api('sidi_get_revocable', sidi_get_revocable)
+        register_api('sidi_undo', sidi_undo)
                
     def tear_down(self, code, exception=None):
         pass
