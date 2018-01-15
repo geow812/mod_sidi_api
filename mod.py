@@ -339,6 +339,35 @@ def sidi_get_holding(account_id):
 
         key_list.append(stock)
     return key_list 
+
+def sidi_get_trade(account_id):
+    funcno = '401155'
+    try:
+        path = "funcNo="+funcno+"&account_id="+account_id
+
+        status = -1
+        ret = -1
+        n = 0
+        while (status!=HTTP_OK  or ret!="0") and n<3:
+            status, result = get_sidi_data(path)
+            res_json = json.loads(result)
+            ret = res_json['error_no']
+            time.sleep(1)
+            n = n + 1
+    except Exception as e:
+        raise e
+
+    if res_json.has_key('results')==False:
+        logger.warn("error trade type %s" % res_json)
+
+    if len(res_json['results']) == 0:
+        trade_data = []
+    else:
+        trade_data = res_json['results'][0]['data']
+
+    res_json = trade_data
+
+    return res_json
    
 class SidiApiMod(AbstractMod):
     def start_up(self, env, mod_config):                    
